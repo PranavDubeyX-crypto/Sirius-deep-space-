@@ -1,6 +1,4 @@
-from pathlib import Path
-p = Path("/mnt/data/index.html")
-html = r'''<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -170,4 +168,4 @@ const speeds=[.25,.5,1,2,4];
 document.getElementById('speedSelect').addEventListener('change',e=>{speed=Number(e.target.value);document.getElementById('timeReadout').textContent=speed+'× SPEED';document.getElementById('speedRange').value=String(speeds.indexOf(speed));});
 document.getElementById('speedRange').addEventListener('input',e=>{speed=speeds[Number(e.target.value)]||1;document.getElementById('speedSelect').value=String(speed);document.getElementById('timeReadout').textContent=speed+'× SPEED';});
 canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'&&e.isPrimary===false)return;dragging=true;lastX=e.clientX;lastY=e.clientY;moved=0;canvas.setPointerCapture?.(e.pointerId);});
-canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;moved+=Math.abs(dx)+Math.abs(dy);targetRotY+=dx*.004;targetRotX
+canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;moved+=Math.abs(dx)+Math.abs(dy);targetRotY+=dx*.004;targetRotX=THREE.MathUtils.clamp(targetRotX+dy*.003,-1.1,1.1);lastX=e.clientX;l
