@@ -1,0 +1,134 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Sirius Deep Space</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#030611;color:#eef5ff;font-family:system-ui,sans-serif;overflow:hidden}
+canvas{display:block;position:fixed;inset:0}
+header{position:fixed;top:0;left:0;right:0;padding:18px 18px 12px;background:linear-gradient(#030611eF,transparent);pointer-events:none}
+h1{margin:0;font-size:24px;letter-spacing:3px}
+.sub{font-size:11px;letter-spacing:3px;color:#76cfff}
+#hint{font-size:12px;color:#a9bbd8;margin-top:7px}
+#panel{display:none;position:fixed;left:14px;right:14px;bottom:18px;padding:18px;border:1px solid #4976a8;border-radius:18px;background:#071426ed;backdrop-filter:blur(12px);max-height:44vh;overflow:auto}
+#panel h2{margin:0 0 7px;color:#8cdbff}
+#panel p{font-size:14px;line-height:1.5;color:#d3e0f5}
+#close{float:right;background:#203954;color:white;border:0;border-radius:8px;padding:7px 12px}
+#reset{position:fixed;right:16px;top:95px;padding:10px 14px;border:1px solid #426b99;border-radius:20px;background:#0a1930;color:white}
+</style>
+</head>
+<body>
+<header>
+<h1>SIRIUS</h1>
+<div class="sub">DEEP SPACE EXPLORER</div>
+<div id="hint">Touch a planet to explore • Drag to rotate</div>
+</header>
+<button id="reset">Reset view</button>
+<div id="panel"><button id="close">Close ✕</button><h2 id="name"></h2><p id="info"></p></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x02040c);
+scene.fog=new THREE.FogExp2(0x02040c,0.0015);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1500);
+camera.position.set(0,38,78);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'low-power'});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0x8798c5,1.5));
+const sunLight=new THREE.PointLight(0xffd9a0,1800,500,1.5);
+scene.add(sunLight);
+
+const starsGeo=new THREE.BufferGeometry(), starPos=[];
+for(let i=0;i<1800;i++){
+ const r=180+Math.random()*550;
+ const a=Math.random()*Math.PI*2, b=Math.acos(2*Math.random()-1);
+ starPos.push(r*Math.sin(b)*Math.cos(a),r*Math.cos(b),r*Math.sin(b)*Math.sin(a));
+}
+starsGeo.setAttribute('position',new THREE.Float32BufferAttribute(starPos,3));
+scene.add(new THREE.Points(starsGeo,new THREE.PointsMaterial({color:0xc7dcff,size:1.2,sizeAttenuation:true})));
+
+const sun=new THREE.Mesh(new THREE.SphereGeometry(3.2,24,16),new THREE.MeshBasicMaterial({color:0xffc24b}));
+scene.add(sun);
+const glow=new THREE.Mesh(new THREE.SphereGeometry(4.2,20,14),new THREE.MeshBasicMaterial({color:0xff8b30,transparent:true,opacity:.16}));
+scene.add(glow);
+
+const data=[
+['Mercury',5.5,.55,0xaaa9a4,'Smallest planet; a rocky world with extreme temperature changes.'],
+['Venus',8,.85,0xe8b777,'A rocky planet with a thick atmosphere, intense heat and sulfuric-acid clouds.'],
+['Earth',11,1,0x318bff,'Our home planet, with liquid water on its surface and known life.'],
+['Mars',14, .78,0xd65b39,'A cold, rocky world with giant volcanoes, ancient river evidence and two small moons.'],
+['Jupiter',19,2.1,0xd8b18a,'The largest planet, a gas giant with powerful storms and many moons.'],
+['Saturn',25,1.8,0xe5d0a0,'A gas giant famous for its extensive rings made mostly of icy particles.'],
+['Uranus',31,1.35,0x83d8df,'An ice giant that rotates on an extreme tilt and has faint rings.'],
+['Neptune',37,1.3,0x416dff,'A distant ice giant with powerful winds and a deep blue appearance.']
+];
+const planets=[];
+for(const [name,dist,size,color,info] of data){
+ const pivot=new THREE.Group();scene.add(pivot);
+ const mesh=new THREE.Mesh(new THREE.SphereGeometry(size,20,14),new THREE.MeshStandardMaterial({color,roughness:.8,metalness:.05,emissive:color,emissiveIntensity:.025}));
+ mesh.position.x=dist;
+ pivot.add(mesh);
+ const orbit=new THREE.Mesh(new THREE.RingGeometry(dist-.035,dist+.035,96),new THREE.MeshBasicMaterial({color:0x426080,side:THREE.DoubleSide,transparent:true,opacity:.55}));
+ orbit.rotation.x=-Math.PI/2;scene.add(orbit);
+ if(name==='Saturn'){
+  const ring=new THREE.Mesh(new THREE.RingGeometry(size*1.35,size*2,48),new THREE.MeshBasicMaterial({color:0xd5c29a,side:THREE.DoubleSide,transparent:true,opacity:.75}));
+  ring.rotation.x=-.25;mesh.add(ring);
+ }
+ planets.push({name,dist,pivot,mesh,info,speed:.12/(dist*.16+1)});
+}
+const ray=new THREE.Raycaster(), pointer=new THREE.Vector2();
+let down=null,dragging=false,selected=null;
+function pick(e){
+ pointer.x=e.clientX/innerWidth*2-1;pointer.y=-(e.clientY/innerHeight)*2+1;
+ ray.setFromCamera(pointer,camera);
+ const hit=ray.intersectObjects([sun,...planets.map(p=>p.mesh)]);
+ if(!hit.length)return;
+ const obj=hit[0].object;
+ selected=planets.find(p=>p.mesh===obj);
+ document.getElementById('panel').style.display='block';
+ if(selected){
+  document.getElementById('name').textContent=selected.name;
+  document.getElementById('info').textContent=selected.info+' Distances and sizes here are illustrative, not to scale.';
+ }else{
+  document.getElementById('name').textContent='The Sun';
+  document.getElementById('info').textContent='The star at the center of our solar system. Its gravity keeps the planets in orbit, and its energy supports life on Earth.';
+ }
+}
+renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};dragging=false});
+renderer.domElement.addEventListener('pointermove',e=>{
+ if(!down)return;
+ const dx=e.clientX-down.x,dy=e.clientY-down.y;
+ if(Math.abs(dx)+Math.abs(dy)>5)dragging=true;
+ if(dragging){scene.rotation.y+=dx*.003;camera.position.y=Math.max(8,Math.min(100,camera.position.y-dy*.08));down={x:e.clientX,y:e.clientY}}
+});
+renderer.domElement.addEventListener('pointerup',e=>{
+ if(down&&!dragging)pick(e);
+ down=null;dragging=false;
+});
+document.getElementById('close').onclick=()=>document.getElementById('panel').style.display='none';
+document.getElementById('reset').onclick=()=>{scene.rotation.set(0,0,0);camera.position.set(0,38,78);camera.lookAt(0,0,0)};
+let last=0;
+function animate(t){
+ requestAnimationFrame(animate);
+ const dt=Math.min((t-last)/1000||0,.05);last=t;
+ planets.forEach(p=>{p.pivot.rotation.y+=p.speed*dt;p.mesh.rotation.y+=dt*.25});
+ sun.rotation.y+=dt*.08;
+ camera.lookAt(0,0,0);
+ renderer.render(scene,camera);
+}
+animate(0);
+addEventListener('resize',()=>{
+ camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
