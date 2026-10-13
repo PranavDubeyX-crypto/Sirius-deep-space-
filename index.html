@@ -1,104 +1,100 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>SIRIUS — CODE 120</title>
-<style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030712;color:#edf4ff;font-family:system-ui,Arial}#scene{position:fixed;inset:0}
-.panel{background:#071020dc;border:1px solid #47618a77;border-radius:14px;backdrop-filter:blur(12px);padding:12px;box-shadow:0 8px 30px #0004}
-.top{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;align-items:flex-start;pointer-events:none}.brand,.actions{pointer-events:auto}.brand{letter-spacing:.16em;font-weight:800}.brand small{display:block;font-size:9px;letter-spacing:.12em;color:#9cb3d9}.actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
-button{background:#142644;color:#edf4ff;border:1px solid #48648b88;border-radius:9px;padding:8px 10px;font-size:11px;cursor:pointer}button:hover,.active{border-color:#8ddcff;background:#24456d}
-#catalog{position:fixed;left:10px;top:74px;bottom:72px;width:190px;overflow:auto}h3{margin:0 0 8px;font-size:10px;letter-spacing:.14em;color:#9fcaff}.group{font-size:9px;color:#7695c3;letter-spacing:.12em;margin:12px 2px 5px}.obj{width:100%;display:flex;align-items:center;gap:8px;text-align:left;margin:3px 0;padding:8px}.dot{width:9px;height:9px;border-radius:50%;flex:none}
-#info{position:fixed;right:10px;top:74px;width:270px;max-height:calc(100vh - 150px);overflow:auto}#kind{color:#8fd6ff;font-size:9px;letter-spacing:.14em;text-transform:uppercase}#name{font-size:22px;margin:5px 0}#desc,#note{font-size:11px;line-height:1.5;color:#c4d3eb}#stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}.stat{background:#12213b;border:1px solid #3b527655;border-radius:8px;padding:8px}.stat span{display:block;font-size:9px;color:#93a9ce}.stat b{font-size:11px}#note{border-left:2px solid #75caff;padding-left:8px}
-.bottom{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:95vw}.hint{position:fixed;top:58px;left:50%;transform:translateX(-50%);font-size:10px;color:#adc5e9;text-align:center;pointer-events:none}
-#loading{position:fixed;inset:0;background:#030712;display:grid;place-content:center;text-align:center;z-index:9;letter-spacing:.2em;font-size:12px}#loading small{display:block;color:#7d9bc8;margin-top:10px;letter-spacing:.08em}
-@media(max-width:700px){.top{top:7px;left:7px;right:7px}.brand{font-size:12px}.brand small{font-size:7px}.actions button{font-size:9px;padding:6px}#catalog{left:7px;top:auto;bottom:66px;width:132px;height:34vh;max-height:260px;padding:8px}#info{top:67px;right:7px;width:calc(100vw - 153px);max-height:35vh;padding:9px}#name{font-size:16px}#desc,#note{font-size:9px}#stats{grid-template-columns:1fr;gap:3px;margin:6px 0}.stat{padding:5px}.stat b{font-size:9px}.obj{font-size:9px;padding:6px}.bottom{bottom:7px;gap:3px}.bottom button{font-size:9px;padding:6px}.hint{top:47px;font-size:8px;width:90vw}}
-</style></head><body><div id="scene"></div><div id="loading">SIRIUS INITIALIZING<small>SOLAR SYSTEM → OORT CLOUD</small></div>
-<header class="top"><div class="brand panel">SIRIUS<small>DEEP SPACE EXPLORER · CODE 120</small></div><div class="actions panel"><button id="labels">Labels: ON</button><button id="orbits">Orbits: ON</button><button id="pause">Pause</button></div></header>
-<div class="hint">Drag to rotate · Scroll/pinch to zoom · Tap an object to inspect</div>
-<aside id="catalog" class="panel"><h3>EXPLORE OBJECTS</h3><div id="items"></div></aside>
-<section id="info" class="panel"><div id="kind">STAR</div><div id="name">The Sun</div><div id="desc"></div><div id="stats"></div><div id="note"></div></section>
-<nav class="bottom panel"><button id="home">Solar System</button><button id="outer">Outer System</button><button id="oort">Oort Cloud</button><button id="zin">Zoom +</button><button id="zout">Zoom −</button><button id="reset">Reset</button></nav>
-<script src="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.min.js"></script>
-<script>
-(()=>{const $=x=>document.getElementById(x);if(!window.THREE){$('loading').innerHTML='Three.js could not load<small>Check internet and reload.</small>';return}
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x030712);const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,3000);camera.position.set(0,100,230);
-const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;$('scene').appendChild(renderer.domElement);
-scene.add(new THREE.AmbientLight(0x8195bd,1.4));const light=new THREE.PointLight(0xffe5b0,1800,1300);scene.add(light);
-const world=new THREE.Group();scene.add(world);const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let target=new THREE.Vector3(),drag=false,lx=0,ly=0,dx0=0,dy0=0,paused=false,labelsOn=true,orbitsOn=true,selected;
-const bodies=[],clickables=[],labels=[],orbitMeshes=[];
-function label(text){const c=document.createElement('canvas'),x=c.getContext('2d');c.width=512;c.height=88;x.fillStyle='#071020d9';x.fillRect(4,5,504,78);x.strokeStyle='#7db8e5';x.strokeRect(4,5,504,78);x.font='bold 32px Arial';x.textAlign='center';x.fillStyle='#e7f3ff';x.fillText(text,256,55);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false}));s.scale.set(Math.max(8,text.length*.4),1.8,1);labels.push(s);world.add(s);return s}
-function orbit(r){const pts=[];for(let i=0;i<180;i++){let a=i/180*Math.PI*2;pts.push(new THREE.Vector3(Math.cos(a)*r,0,Math.sin(a)*r))}let l=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x405b84,transparent:true,opacity:.38}));world.add(l);orbitMeshes.push(l)}
-function body(d){let mesh=new THREE.Mesh(new THREE.SphereGeometry(d.r,28,20),new THREE.MeshStandardMaterial({color:d.color,roughness:.83}));mesh.position.set(d.x||0,d.y||0,d.z||0);mesh.userData.id=d.id;mesh.userData.d=d;world.add(mesh);clickables.push(mesh);let lab=label(d.name);lab.position.set(mesh.position.x,mesh.position.y+d.r+2,mesh.position.z);mesh.userData.lab=lab;
-if(d.ring){let r=new THREE.Mesh(new THREE.RingGeometry(d.r*1.35,d.r*2.1,64),new THREE.MeshStandardMaterial({color:d.ring,side:THREE.DoubleSide,transparent:true,opacity:.68}));r.rotation.x=Math.PI/2;mesh.add(r)}
-bodies.push({mesh,d,lab,phase:d.phase||Math.random()*6.28});return mesh}
-function particles(name,n,min,max,color,size,opacity){let a=new Float32Array(n*3);for(let i=0;i<n;i++){let th=Math.random()*6.283,r=min+Math.random()*(max-min);a[i*3]=Math.cos(th)*r;a[i*3+1]=(Math.random()-.5)*(max-min)*.07;a[i*3+2]=Math.sin(th)*r}let g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(a,3));let p=new THREE.Points(g,new THREE.PointsMaterial({color,size,opacity,transparent:true,depthWrite:false}));p.name=name;world.add(p);return p}
-let starPos=new Float32Array(6000*3);for(let i=0;i<6000;i++){let r=500+Math.random()*900,t=Math.random()*6.283,u=Math.random()*2-1,s=Math.sqrt(1-u*u);starPos[3*i]=r*s*Math.cos(t);starPos[3*i+1]=r*u;starPos[3*i+2]=r*s*Math.sin(t)}let sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.BufferAttribute(starPos,3));scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xc6ddff,size:1.2,sizeAttenuation:false,transparent:true,opacity:.85})));
-const sun={id:'sun',name:'The Sun',kind:'G2V main-sequence star',r:7,color:0xffb52f,description:'The star at the centre of our planetary system. Its gravity governs the orbits of planets, dwarf planets, comets and countless smaller bodies.',stats:[['Age','~4.6 billion years'],['Diameter','~1.39 million km'],['Surface','~5,500 °C'],['System mass','~99.86%']],note:'The Sun is powered by nuclear fusion. Distances and sizes are compressed for a usable interactive view.'};body(sun).material=new THREE.MeshBasicMaterial({color:0xffc34e});
-const planets=[
-['mercury','Mercury',.65,0x99918a,12,'Terrestrial planet','4,879 km','88 days','58.6 days','~167 °C average','Small, cratered world with a large metallic core and extreme temperature changes.','Its local solar day lasts about 176 Earth days.'],
-['venus','Venus',1.05,0xd8b879,18,'Terrestrial planet','12,104 km','225 days','243 days','~465 °C average','Rocky world covered by thick carbon-dioxide atmosphere and sulfuric-acid clouds.','Its intense greenhouse effect makes Venus the hottest planet.'],
-['earth','Earth',1.2,0x337fdf,25,'Terrestrial planet','12,742 km','365.25 days','23 h 56 min','~15 °C average','Ocean-rich world with a nitrogen-oxygen atmosphere, active plate tectonics and confirmed life.','Earth’s seasons are mainly caused by its axial tilt.'],
-['mars','Mars',.85,0xc45e3c,33,'Terrestrial planet','6,779 km','687 days','24 h 37 min','~−60 °C average','Cold, dusty world with ancient river valleys, polar ice, Olympus Mons and Valles Marineris.','Organic molecules have been detected, but life has not been confirmed.'],
-['jupiter','Jupiter',4,0xc89a72,47,'Gas giant','~139,820 km','11.86 years','~9 h 56 min','Cloud tops ~−110 °C','Largest planet, with banded clouds, powerful magnetic field and the Great Red Spot.','Major moons include Io, Europa, Ganymede and Callisto.'],
-['saturn','Saturn',3.3,0xd7c08c,62,'Gas giant','~116,460 km','29.4 years','~10.7 hours','Cloud tops ~−140 °C','Gas giant surrounded by extensive rings made mostly of water-ice particles.','Titan has methane lakes; Enceladus ejects water-rich plumes.'],
-['uranus','Uranus',2.3,0x8cd8d9,77,'Ice giant','~50,724 km','84 years','~17.2 hours','~−195 °C cloud tops','Cyan ice giant tilted about 98 degrees, with an offset and tilted magnetic field.','Uranus has faint rings and many known moons; counts can change.'],
-['neptune','Neptune',2.25,0x386be0,91,'Ice giant','~49,528 km','~165 years','~16 hours','~−200 °C cloud tops','Distant ice giant with fast winds, transient dark storms and faint rings.','Voyager 2 flew past Neptune in 1989.']
-].map(v=>({id:v[0],name:v[1],r:v[2],color:v[3],a:v[4],kind:v[5],diam:v[6],year:v[7],day:v[8],temp:v[9],description:v[10],note:v[11]}));
-planets.forEach(d=>{d.phase=Math.random()*6.28;d.x=Math.cos(d.phase)*d.a;d.z=Math.sin(d.phase)*d.a;d.stats=[['Diameter',d.diam],['Year',d.year],['Rotation',d.day],['Temperature',d.temp]];orbit(d.a);body(d).userData.orbit={a:d.a,period:d.year}});
-particles('Asteroid Belt',1700,37,42,0xb6a68c,.75,.65);
-const dwarfs=[
-{id:'ceres',name:'Ceres',kind:'Dwarf planet · Asteroid Belt',r:.5,color:0x8d8985,a:39,diam:'~940 km',year:'~4.6 years',description:'Largest asteroid-belt body. Bright salt deposits and water-altered minerals reveal a history of brines.',note:'Past brines are supported by evidence; a present global ocean is not confirmed.',stats:[['Diameter','~940 km'],['Region','Asteroid Belt'],['Mission','Dawn, 2015–2018']]},
-{id:'pluto',name:'Pluto',kind:'Dwarf planet · Kuiper Belt',r:.72,color:0xb8a18e,a:111,diam:'~2,377 km',year:'248 years',description:'Icy world with nitrogen glaciers, water-ice mountains, layered haze and five known moons.',note:'A subsurface ocean is suggested by models but has not been directly observed.',stats:[['Diameter','~2,377 km'],['Year','248 years'],['Moons','5'],['Flyby','New Horizons, 2015']]},
-{id:'haumea',name:'Haumea',kind:'Dwarf planet · Kuiper Belt',r:.7,color:0xd9d6cb,a:121,diam:'Elongated; model-dependent',year:'~284 years',description:'Rapidly rotating elongated dwarf planet with crystalline water-ice signatures, a narrow ring and two moons.',note:'The exact shape and density depend on models; its collisional family is linked to an ancient impact.',stats:[['Rotation','~3.915 hours'],['Moons','2'],['Ring','Confirmed'],['Year','~284 years']] ,ring:0xcac7bd},
-{id:'makemake',name:'Makemake',kind:'Dwarf planet · Kuiper Belt',r:.66,color:0xa96b53,a:132,diam:'~1,430 km',year:'~306 years',description:'Reddish-brown, methane-rich dwarf planet with one known moon, MK 2.',note:'A stable global atmosphere and subsurface ocean are not established.',stats:[['Diameter','~1,430 km'],['Year','~306 years'],['Moons','1'],['Surface','Methane-rich ices']]},
-{id:'eris',name:'Eris',kind:'Dwarf planet · Scattered disk',r:.7,color:0xd9d9d5,a:143,diam:'~2,326 km',year:'~557 years',description:'Highly reflective, massive dwarf planet on a distant eccentric orbit. Its moon Dysnomia constrains its mass.',note:'A subsurface ocean is model-dependent. No spacecraft has visited Eris.',stats:[['Diameter','~2,326 km'],['Year','~557 years'],['Moon','Dysnomia'],['Visited','No spacecraft']]},
-{id:'orcus',name:'Orcus',kind:'Trans-Neptunian object',r:.43,color:0x999bb5,a:151,diam:'~900 km',year:'~247 years',description:'Resonant trans-Neptunian object with a moon named Vanth, sometimes called Pluto’s “anti-Pluto”.',note:'Not an IAU-recognized dwarf planet.',stats:[['Moon','Vanth'],['Region','Kuiper Belt'],['Status','TNO']]},
-{id:'quaoar',name:'Quaoar',kind:'Trans-Neptunian object',r:.43,color:0xa99b8d,a:159,diam:'~1,100 km',year:'~288 years',description:'Large trans-Neptunian object with a moon, Weywot, and a surprising ring system.',note:'Its ring dynamics are an active research topic.',stats:[['Moon','Weywot'],['Ring','Reported'],['Region','Kuiper Belt']]},
-{id:'gonggong',name:'Gonggong',kind:'Trans-Neptunian object',r:.43,color:0x9c6552,a:168,diam:'~1,230 km',year:'~554 years',description:'Large reddish trans-Neptunian object with a moon called Xiangliu.',note:'Size and density depend on binary-system measurements.',stats:[['Moon','Xiangliu'],['Region','Scattered disk']]},
-{id:'sedna',name:'Sedna',kind:'Detached trans-Neptunian object',r:.35,color:0xb46b56,a:179,diam:'~1,000 km; uncertain',year:'~11,400 years',description:'A distant detached object with an exceptionally elongated orbit.',note:'Not an officially recognized dwarf planet; its origin remains under study.',stats:[['Orbit','Detached'],['Year','~11,400 years'],['Status','Candidate']]},
-{id:'arrokoth',name:'Arrokoth',kind:'Kuiper Belt contact binary',r:.38,color:0x8f6352,a:115,diam:'~36 km long',year:'~298 years',description:'Small contact-binary object visited by New Horizons in 2019; its two lobes preserve clues to planetesimal formation.',note:'This sphere is a placeholder; a true model should use two joined lobes.',stats:[['Length','~36 km'],['Flyby','2019'],['Type','Contact binary']]}
-];
-dwarfs.forEach(d=>{d.phase=Math.random()*6.28;d.x=Math.cos(d.phase)*d.a;d.z=Math.sin(d.phase)*d.a;orbit(d.a);body(d).userData.orbit={a:d.a,period:d.year}});
-particles('Kuiper Belt',2500,107,151,0x8295ba,.8,.48);
-const regions=[
-{id:'asteroid-belt',name:'Main Asteroid Belt',kind:'Small-body region',r:1,color:0xb5a78e,x:0,z:40,description:'A population of rocky and metallic bodies between Mars and Jupiter. The belt’s mass is dominated by a few large objects.',stats:[['Location','~2.1–3.3 AU'],['Largest dwarf planet','Ceres'],['Model','Particle field']],note:'Individual asteroids are too numerous to show separately; this field is illustrative.'},
-{id:'kuiper-belt',name:'Kuiper Belt',kind:'Trans-Neptunian region',r:1,color:0x829ed7,x:0,z:132,description:'A disk-like region beyond Neptune containing icy bodies, dwarf planets and many small objects.',stats:[['Region','Beyond Neptune'],['Worlds','Pluto, Haumea, Makemake'],['Shape','Flattened disk']],note:'The displayed particle distribution is schematic.'},
-{id:'heliopause',name:'Heliopause',kind:'Boundary region',r:1,color:0x6bb8ff,x:0,z:207,description:'A dynamic boundary where the solar wind gives way to the interstellar environment.',stats:[['Scale','~120 AU in some directions'],['Voyager 1','Crossed in 2012'],['Voyager 2','Crossed in 2018']],note:'Not a hard wall; distance varies with direction and solar activity.'},
-{id:'oort-cloud',name:'The Oort Cloud',kind:'Hypothesized comet reservoir',r:1,color:0xa4bfff,x:0,z:295,description:'A hypothesized roughly spherical reservoir of icy bodies surrounding the Solar System at enormous distances. Long-period comets are thought to originate from it.',stats:[['Inner edge','Uncertain'],['Outer extent','Possibly ~100,000 AU'],['Direct image','Not observed as a cloud']],note:'Inferred from comet orbits. The cloud’s boundaries and structure are uncertain; visualization is not to scale.'}
-];
-regions.forEach(d=>{let m=new THREE.Mesh(new THREE.SphereGeometry(1.25,12,10),new THREE.MeshBasicMaterial({color:d.color,wireframe:true,transparent:true,opacity:.5}));m.position.set(d.x,0,d.z);m.userData.id=d.id;m.userData.d=d;world.add(m);clickables.push(m);let l=label(d.name);l.position.set(d.x,3,d.z);m.userData.lab=l;bodies.push({mesh:m,d,lab:l,phase:0})});
-let cloudPos=new Float32Array(6000*3);for(let i=0;i<6000;i++){let u=Math.random()*2-1,t=Math.random()*6.283,r=250+Math.random()*130,s=Math.sqrt(1-u*u);cloudPos[3*i]=r*s*Math.cos(t);cloudPos[3*i+1]=r*u;cloudPos[3*i+2]=r*s*Math.sin(t)}let cg=new THREE.BufferGeometry();cg.setAttribute('position',new THREE.BufferAttribute(cloudPos,3));world.add(new THREE.Points(cg,new THREE.PointsMaterial({color:0x8aaee8,size:1.25,transparent:true,opacity:.58,sizeAttenuation:false,depthWrite:false})));
-const all=[sun,...planets,...dwarfs,...regions];const color=d=>'#'+new THREE.Color(d.color||0x91baff).getHexString();
-function catalog(){let groups=[['STAR',[sun]],['PLANETS',planets],['DWARF PLANETS & SMALL WORLDS',dwarfs],['REGIONS',regions]];for(const [title,arr] of groups){let h=document.createElement('div');h.className='group';h.textContent=title;$('items').appendChild(h);for(let d of arr){let b=document.createElement('button');b.className='obj';b.dataset.id=d.id;b.innerHTML=`<span class="dot" style="background:${color(d)}"></span>${d.name}`;b.onclick=()=>select(d.id,true);$('items').appendChild(b)}}}
-function select(id,move=false){let o=bodies.find(o=>o.d.id===id);if(!o)return;selected=o;document.querySelectorAll('.obj').forEach(b=>b.classList.toggle('active',b.dataset.id===id));let d=o.d;$('kind').textContent=d.kind||'Solar System object';$('name').textContent=d.name;$('desc').textContent=d.description||'Solar System object';$('stats').innerHTML=(d.stats||[['Diameter',d.diam||'—'],['Year',d.year||'—'],['Rotation',d.day||'—'],['Temperature',d.temp||'—']]).map(s=>`<div class="stat"><span>${s[0]}</span><b>${s[1]}</b></div>`).join('');$('note').textContent=d.note||'Illustrative visualization; values may be approximate and hypotheses are identified as such.';if(move){let p=o.mesh.position;target.set(p.x,0,p.z);camera.position.set(p.x,p.y+Math.max(8,d.r*5),p.z+Math.max(18,d.r*7));camera.lookAt(target)}}
-catalog();select('sun');
-function view(which){if(which==='home'){camera.position.set(0,80,150);target.set(0,0,0);select('sun')}if(which==='outer'){camera.position.set(0,130,250);target.set(0,0,110);select('pluto')}if(which==='oort'){camera.position.set(0,250,590);target.set(0,0,280);select('oort-cloud')}camera.lookAt(target)}
-$('home').onclick=()=>view('home');$('outer').onclick=()=>view('outer');$('oort').onclick=()=>view('oort');$('zin').onclick=()=>camera.position.sub(target).multiplyScalar(.82).add(target);$('zout').onclick=()=>camera.position.sub(target).multiplyScalar(1.22).add(target);$('reset').onclick=()=>{camera.position.set(0,100,230);target.set(0,0,0);camera.lookAt(target)};$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Resume':'Pause'};$('labels').onclick=()=>{labelsOn=!labelsOn;labels.forEach(l=>l.visible=labelsOn);$('labels').textContent='Labels: '+(labelsOn?'ON':'OFF')};$('orbits').onclick=()=>{orbitsOn=!orbitsOn;orbitMeshes.forEach(l=>l.visible=orbitsOn);$('orbits').textContent='Orbits: '+(orbitsOn?'ON':'OFF')};
-renderer.domElement.addEventListener('pointerdown',e=>{drag=true;lx=dx0=e.clientX;ly=dy0=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)});renderer.domElement.addEventListener('pointermove',e=>{
-if(!drag)return;
-let dx=e.clientX-lx,dy=e.clientY-ly;
-lx=e.clientX;ly=e.clientY;
-if(Math.hypot(e.clientX-dx0,e.clientY-dy0)>5){
-let off=camera.position.clone().sub(target);
-let s=new THREE.Spherical().setFromVector3(off);
-s.theta-=dx*.006;
-s.phi=Math.max(.12,Math.min(Math.PI-.12,s.phi+dy*.006));
-off.setFromSpherical(s);
-camera.position.copy(target).add(off);
-camera.lookAt(target);
-}
-});
+doctype html>
 
-renderer.domElement.addEventListener('pointerup',e=>{
-drag=false;
-if(Math.hypot(e.clientX-dx0,e.clientY-dy0)<7){
-pointer.x=e.clientX/innerWidth*2-1;
-pointer.y=-(e.clientY/innerHeight)*2+1;
-ray.setFromCamera(pointer,camera);
-let hits=ray.intersectObjects(clickables);
-if(hits.length)select(hits[0].object.userData.id,false);
-}
-});
-
-renderer.domElement.addEventListener('wheel',e=>{
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>SIRIUS — CODE 120</title>    
+<style>    
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030712;color:#edf4ff;font-family:system-ui,Arial}#scene{position:fixed;inset:0}    
+.panel{background:#071020dc;border:1px solid #47618a77;border-radius:14px;backdrop-filter:blur(12px);padding:12px;box-shadow:0 8px 30px #0004}    
+.top{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;align-items:flex-start;pointer-events:none}.brand,.actions{pointer-events:auto}.brand{letter-spacing:.16em;font-weight:800}.brand small{display:block;font-size:9px;letter-spacing:.12em;color:#9cb3d9}.actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}    
+button{background:#142644;color:#edf4ff;border:1px solid #48648b88;border-radius:9px;padding:8px 10px;font-size:11px;cursor:pointer}button:hover,.active{border-color:#8ddcff;background:#24456d}    
+#catalog{position:fixed;left:10px;top:74px;bottom:72px;width:190px;overflow:auto}h3{margin:0 0 8px;font-size:10px;letter-spacing:.14em;color:#9fcaff}.group{font-size:9px;color:#7695c3;letter-spacing:.12em;margin:12px 2px 5px}.obj{width:100%;display:flex;align-items:center;gap:8px;text-align:left;margin:3px 0;padding:8px}.dot{width:9px;height:9px;border-radius:50%;flex:none}    
+#info{position:fixed;right:10px;top:74px;width:270px;max-height:calc(100vh - 150px);overflow:auto}#kind{color:#8fd6ff;font-size:9px;letter-spacing:.14em;text-transform:uppercase}#name{font-size:22px;margin:5px 0}#desc,#note{font-size:11px;line-height:1.5;color:#c4d3eb}#stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}.stat{background:#12213b;border:1px solid #3b527655;border-radius:8px;padding:8px}.stat span{display:block;font-size:9px;color:#93a9ce}.stat b{font-size:11px}#note{border-left:2px solid #75caff;padding-left:8px}    
+.bottom{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:95vw}.hint{position:fixed;top:58px;left:50%;transform:translateX(-50%);font-size:10px;color:#adc5e9;text-align:center;pointer-events:none}    
+#loading{position:fixed;inset:0;background:#030712;display:grid;place-content:center;text-align:center;z-index:9;letter-spacing:.2em;font-size:12px}#loading small{display:block;color:#7d9bc8;margin-top:10px;letter-spacing:.08em}    
+@media(max-width:700px){.top{top:7px;left:7px;right:7px}.brand{font-size:12px}.brand small{font-size:7px}.actions button{font-size:9px;padding:6px}#catalog{left:7px;top:auto;bottom:66px;width:132px;height:34vh;max-height:260px;padding:8px}#info{top:67px;right:7px;width:calc(100vw - 153px);max-height:35vh;padding:9px}#name{font-size:16px}#desc,#note{font-size:9px}#stats{grid-template-columns:1fr;gap:3px;margin:6px 0}.stat{padding:5px}.stat b{font-size:9px}.obj{font-size:9px;padding:6px}.bottom{bottom:7px;gap:3px}.bottom button{font-size:9px;padding:6px}.hint{top:47px;font-size:8px;width:90vw}}    
+</style></head><body><div id="scene"></div><div id="loading">SIRIUS INITIALIZING<small>SOLAR SYSTEM → OORT CLOUD</small></div>    
+<header class="top"><div class="brand panel">SIRIUS<small>DEEP SPACE EXPLORER · CODE 120</small></div><div class="actions panel"><button id="labels">Labels: ON</button><button id="orbits">Orbits: ON</button><button id="pause">Pause</button></div></header><div class="hint">Drag to rotate · Scroll/pinch to zoom · Tap an object to inspect</div>    
+<aside id="catalog" class="panel"><h3>EXPLORE OBJECTS</h3><div id="items"></div></aside>    
+<section id="info" class="panel"><div id="kind">STAR</div><div id="name">The Sun</div><div id="desc"></div><div id="stats"></div><div id="note"></div></section>    
+<nav class="bottom panel"><button id="home">Solar System</button><button id="outer">Outer System</button><button id="oort">Oort Cloud</button><button id="zin">Zoom +</button><button id="zout">Zoom −</button><button id="reset">Reset</button></nav>    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>    
+<script>    
+(()=>{const $=x=>document.getElementById(x);if(!window.THREE){$('loading').innerHTML='Three.js could not load<small>Check internet and reload.</small>';return}    
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x030712);const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,3000);camera.position.set(0,100,230);    
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;$('scene').appendChild(renderer.domElement);    
+scene.add(new THREE.AmbientLight(0x8195bd,1.4));const light=new THREE.PointLight(0xffe5b0,1800,1300);scene.add(light);    
+const world=new THREE.Group();scene.add(world);const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let target=new THREE.Vector3(),drag=false,lx=0,ly=0,dx0=0,dy0=0,paused=false,labelsOn=true,orbitsOn=true,selected;    
+const bodies=[],clickables=[],labels=[],orbitMeshes=[];    
+function label(text){const c=document.createElement('canvas'),x=c.getContext('2d');c.width=512;c.height=88;x.fillStyle='#071020d9';x.fillRect(4,5,504,78);x.strokeStyle='#7db8e5';x.strokeRect(4,5,504,78);x.font='bold 32px Arial';x.textAlign='center';x.fillStyle='#e7f3ff';x.fillText(text,256,55);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false}));s.scale.set(Math.max(8,text.length*.4),1.8,1);labels.push(s);world.add(s);return s}    
+function orbit(r){const pts=[];for(let i=0;i<180;i++){let a=i/180*Math.PI*2;pts.push(new THREE.Vector3(Math.cos(a)*r,0,Math.sin(a)*r))}let l=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x405b84,transparent:true,opacity:.38}));world.add(l);orbitMeshes.push(l)}    
+function body(d){let mesh=new THREE.Mesh(new THREE.SphereGeometry(d.r,28,20),new THREE.MeshStandardMaterial({color:d.color,roughness:.83}));mesh.position.set(d.x||0,d.y||0,d.z||0);mesh.userData.id=d.id;mesh.userData.d=d;world.add(mesh);clickables.push(mesh);let lab=label(d.name);lab.position.set(mesh.position.x,mesh.position.y+d.r+2,mesh.position.z);mesh.userData.lab=lab;    
+if(d.ring){let r=new THREE.Mesh(new THREE.RingGeometry(d.r*1.35,d.r*2.1,64),new THREE.MeshStandardMaterial({color:d.ring,side:THREE.DoubleSide,transparent:true,opacity:.68}));r.rotation.x=Math.PI/2;mesh.add(r)}    
+bodies.push({mesh,d,lab,phase:d.phase||Math.random()*6.28});return mesh}    
+function particles(name,n,min,max,color,size,opacity){let a=new Float32Array(n*3);for(let i=0;i<n;i++){let th=Math.random()*6.283,r=min+Math.random()*(max-min);a[i*3]=Math.cos(th)*r;a[i*3+1]=(Math.random()-.5)*(max-min)*.07;a[i*3+2]=Math.sin(th)*r}let g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(a,3));let p=new THREE.Points(g,new THREE.PointsMaterial({color,size,opacity,transparent:true,depthWrite:false}));p.name=name;world.add(p);return p}    
+let starPos=new Float32Array(6000*3);for(let i=0;i<6000;i++){let r=500+Math.random()*900,t=Math.random()*6.283,u=Math.random()*2-1,s=Math.sqrt(1-u*u);starPos[3*i]=r*s*Math.cos(t);starPos[3*i+1]=r*u;starPos[3*i+2]=r*s*Math.sin(t)}let sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.BufferAttribute(starPos,3));scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xc6ddff,size:1.2,sizeAttenuation:false,transparent:true,opacity:.85})));    
+const sun={id:'sun',name:'The Sun',kind:'G2V main-sequence star',r:7,color:0xffb52f,description:'The star at the centre of our planetary system. Its gravity governs the orbits of planets, dwarf planets, comets and countless smaller bodies.',stats:[['Age','~4.6 billion years'],['Diameter','~1.39 million km'],['Surface','~5,500 °C'],['System mass','~99.86%']],note:'The Sun is powered by nuclear fusion. Distances and sizes are compressed for a usable interactive view.'};body(sun).material=new THREE.MeshBasicMaterial({color:0xffc34e});    
+const planets=[    
+['mercury','Mercury',.65,0x99918a,12,'Terrestrial planet','4,879 km','88 days','58.6 days','~167 °C average','Small, cratered world with a large metallic core and extreme temperature changes.','Its local solar day lasts about 176 Earth days.'],    
+['venus','Venus',1.05,0xd8b879,18,'Terrestrial planet','12,104 km','225 days','243 days','~465 °C average','Rocky world covered by thick carbon-dioxide atmosphere and sulfuric-acid clouds.','Its intense greenhouse effect makes Venus the hottest planet.'],    
+['earth','Earth',1.2,0x337fdf,25,'Terrestrial planet','12,742 km','365.25 days','23 h 56 min','~15 °C average','Ocean-rich world with a nitrogen-oxygen atmosphere, active plate tectonics and confirmed life.','Earth’s seasons are mainly caused by its axial tilt.'],    
+['mars','Mars',.85,0xc45e3c,33,'Terrestrial planet','6,779 km','687 days','24 h 37 min','~−60 °C average','Cold, dusty world with ancient river valleys, polar ice, Olympus Mons and Valles Marineris.','Organic molecules have been detected, but life has not been confirmed.'],    
+['jupiter','Jupiter',4,0xc89a72,47,'Gas giant','~139,820 km','11.86 years','~9 h 56 min','Cloud tops ~−110 °C','Largest planet, with banded clouds, powerful magnetic field and the Great Red Spot.','Major moons include Io, Europa, Ganymede and Callisto.'],    
+['saturn','Saturn',3.3,0xd7c08c,62,'Gas giant','~116,460 km','29.4 years','~10.7 hours','Cloud tops ~−140 °C','Gas giant surrounded by extensive rings made mostly of water-ice particles.','Titan has methane lakes; Enceladus ejects water-rich plumes.'],    
+['uranus','Uranus',2.3,0x8cd8d9,77,'Ice giant','~50,724 km','84 years','~17.2 hours','~−195 °C cloud tops','Cyan ice giant tilted about 98 degrees, with an offset and tilted magnetic field.','Uranus has faint rings and many known moons; counts can change.'],    
+['neptune','Neptune',2.25,0x386be0,91,'Ice giant','~49,528 km','~165 years','~16 hours','~−200 °C cloud tops','Distant ice giant with fast winds, transient dark storms and faint rings.','Voyager 2 flew past Neptune in 1989.']    
+].map(v=>({id:v[0],name:v[1],r:v[2],color:v[3],a:v[4],kind:v[5],diam:v[6],year:v[7],day:v[8],temp:v[9],description:v[10],note:v[11]}));    
+planets.forEach(d=>{d.phase=Math.random()*6.28;d.x=Math.cos(d.phase)*d.a;d.z=Math.sin(d.phase)*d.a;d.stats=[['Diameter',d.diam],['Year',d.year],['Rotation',d.day],['Temperature',d.temp]];orbit(d.a);body(d).userData.orbit={a:d.a,period:d.year}});    
+particles('Asteroid Belt',1700,37,42,0xb6a68c,.75,.65);    
+const dwarfs=[    
+{id:'ceres',name:'Ceres',kind:'Dwarf planet · Asteroid Belt',r:.5,color:0x8d8985,a:39,diam:'~940 km',year:'~4.6 years',description:'Largest asteroid-belt body. Bright salt deposits and water-altered minerals reveal a history of brines.',note:'Past brines are supported by evidence; a present global ocean is not confirmed.',stats:[['Diameter','~940 km'],['Region','Asteroid Belt'],['Mission','Dawn, 2015–2018']]},    
+{id:'pluto',name:'Pluto',kind:'Dwarf planet · Kuiper Belt',r:.72,color:0xb8a18e,a:111,diam:'~2,377 km',year:'248 years',description:'Icy world with nitrogen glaciers, water-ice mountains, layered haze and five known moons.',note:'A subsurface ocean is suggested by models but has not been directly observed.',stats:[['Diameter','~2,377 km'],['Year','248 years'],['Moons','5'],['Flyby','New Horizons, 2015']]},    
+{id:'haumea',name:'Haumea',kind:'Dwarf planet · Kuiper Belt',r:.7,color:0xd9d6cb,a:121,diam:'Elongated; model-dependent',year:'~284 years',description:'Rapidly rotating elongated dwarf planet with crystalline water-ice signatures, a narrow ring and two moons.',note:'The exact shape and density depend on models; its collisional family is linked to an ancient impact.',stats:[['Rotation','~3.915 hours'],['Moons','2'],['Ring','Confirmed'],['Year','~284 years']] ,ring:0xcac7bd},    
+{id:'makemake',name:'Makemake',kind:'Dwarf planet · Kuiper Belt',r:.66,color:0xa96b53,a:132,diam:'~1,430 km',year:'~306 years',description:'Reddish-brown, methane-rich dwarf planet with one known moon, MK 2.',note:'A stable global atmosphere and subsurface ocean are not established.',stats:[['Diameter','~1,430 km'],['Year','~306 years'],['Moons','1'],['Surface','Methane-rich ices']]},    
+{id:'eris',name:'Eris',kind:'Dwarf planet · Scattered disk',r:.7,color:0xd9d9d5,a:143,diam:'~2,326 km',year:'~557 years',description:'Highly reflective, massive dwarf planet on a distant eccentric orbit. Its moon Dysnomia constrains its mass.',note:'A subsurface ocean is model-dependent. No spacecraft has visited Eris.',stats:[['Diameter','~2,326 km'],['Year','~557 years'],['Moon','Dysnomia'],['Visited','No spacecraft']]},    
+{id:'orcus',name:'Orcus',kind:'Trans-Neptunian object',r:.43,color:0x999bb5,a:151,diam:'~900 km',year:'~247 years',description:'Resonant trans-Neptunian object with a moon named Vanth, sometimes called Pluto’s “anti-Pluto”.',note:'Not an IAU-recognized dwarf planet.',stats:[['Moon','Vanth'],['Region','Kuiper Belt'],['Status','TNO']]},    
+{id:'quaoar',name:'Quaoar',kind:'Trans-Neptunian object',r:.43,color:0xa99b8d,a:159,diam:'~1,100 km',year:'~288 years',description:'Large trans-Neptunian object with a moon, Weywot, and a surprising ring system.',note:'Its ring dynamics are an active research topic.',stats:[['Moon','Weywot'],['Ring','Reported'],['Region','Kuiper Belt']]},    
+{id:'gonggong',name:'Gonggong',kind:'Trans-Neptunian object',r:.43,color:0x9c6552,a:168,diam:'~1,230 km',year:'~554 years',description:'Large reddish trans-Neptunian object with a moon called Xiangliu.',note:'Size and density depend on binary-system measurements.',stats:[['Moon','Xiangliu'],['Region','Scattered disk']]},    
+{id:'sedna',name:'Sedna',kind:'Detached trans-Neptunian object',r:.35,color:0xb46b56,a:179,diam:'~1,000 km; uncertain',year:'~11,400 years',description:'A distant detached object with an exceptionally elongated orbit.',note:'Not an officially recognized dwarf planet; its origin remains under study.',stats:[['Orbit','Detached'],['Year','~11,400 years'],['Status','Candidate']]},    
+{id:'arrokoth',name:'Arrokoth',kind:'Kuiper Belt contact binary',r:.38,color:0x8f6352,a:115,diam:'~36 km long',year:'~298 years',description:'Small contact-binary object visited by New Horizons in 2019; its two lobes preserve clues to planetesimal formation.',note:'This sphere is a placeholder; a true model should use two joined lobes.',stats:[['Length','~36 km'],['Flyby','2019'],['Type','Contact binary']]}    
+];    
+dwarfs.forEach(d=>{d.phase=Math.random()*6.28;d.x=Math.cos(d.phase)*d.a;d.z=Math.sin(d.phase)*d.a;orbit(d.a);body(d).userData.orbit={a:d.a,period:d.year}});    
+particles('Kuiper Belt',2500,107,151,0x8295ba,.8,.48);    
+const regions=[    
+{id:'asteroid-belt',name:'Main Asteroid Belt',kind:'Small-body region',r:1,color:0xb5a78e,x:0,z:40,description:'A population of rocky and metallic bodies between Mars and Jupiter. The belt’s mass is dominated by a few large objects.',stats:[['Location','~2.1–3.3 AU'],['Largest dwarf planet','Ceres'],['Model','Particle field']],note:'Individual asteroids are too numerous to show separately; this field is illustrative.'},    
+{id:'kuiper-belt',name:'Kuiper Belt',kind:'Trans-Neptunian region',r:1,color:0x829ed7,x:0,z:132,description:'A disk-like region beyond Neptune containing icy bodies, dwarf planets and many small objects.',stats:[['Region','Beyond Neptune'],['Worlds','Pluto, Haumea, Makemake'],['Shape','Flattened disk']],note:'The displayed particle distribution is schematic.'},    
+{id:'heliopause',name:'Heliopause',kind:'Boundary region',r:1,color:0x6bb8ff,x:0,z:207,description:'A dynamic boundary where the solar wind gives way to the interstellar environment.',stats:[['Scale','~120 AU in some directions'],['Voyager 1','Crossed in 2012'],['Voyager 2','Crossed in 2018']],note:'Not a hard wall; distance varies with direction and solar activity.'},    
+{id:'oort-cloud',name:'The Oort Cloud',kind:'Hypothesized comet reservoir',r:1,color:0xa4bfff,x:0,z:295,description:'A hypothesized roughly spherical reservoir of icy bodies surrounding the Solar System at enormous distances. Long-period comets are thought to originate from it.',stats:[['Inner edge','Uncertain'],['Outer extent','Possibly ~100,000 AU'],['Direct image','Not observed as a cloud']],note:'Inferred from comet orbits. The cloud’s boundaries and structure are uncertain; visualization is not to scale.'}    
+];    
+regions.forEach(d=>{let m=new THREE.Mesh(new THREE.SphereGeometry(1.25,12,10),new THREE.MeshBasicMaterial({color:d.color,wireframe:true,transparent:true,opacity:.5}));m.position.set(d.x,0,d.z);m.userData.id=d.id;m.userData.d=d;world.add(m);clickables.push(m);let l=label(d.name);l.position.set(d.x,3,d.z);m.userData.lab=l;bodies.push({mesh:m,d,lab:l,phase:0})});    
+let cloudPos=new Float32Array(6000*3);for(let i=0;i<6000;i++){let u=Math.random()*2-1,t=Math.random()*6.283,r=250+Math.random()*130,s=Math.sqrt(1-u*u);cloudPos[3*i]=r*s*Math.cos(t);cloudPos[3*i+1]=r*u;cloudPos[3*i+2]=r*s*Math.sin(t)}let cg=new THREE.BufferGeometry();cg.setAttribute('position',new THREE.BufferAttribute(cloudPos,3));world.add(new THREE.Points(cg,new THREE.PointsMaterial({color:0x8aaee8,size:1.25,transparent:true,opacity:.58,sizeAttenuation:false,depthWrite:false})));    
+const all=[sun,...planets,...dwarfs,...regions];const color=d=>'#'+new THREE.Color(d.color||0x91baff).getHexString();    
+function catalog(){let groups=[['STAR',[sun]],['PLANETS',planets],['DWARF PLANETS & SMALL WORLDS',dwarfs],['REGIONS',regions]];for(const [title,arr] of groups){let h=document.createElement('div');h.className='group';h.textContent=title;$('items').appendChild(h);for(let d of arr){let b=document.createElement('button');b.className='obj';b.dataset.id=d.id;b.innerHTML=`<span class="dot" style="background:${color(d)}"></span>${d.name}`;b.onclick=()=>select(d.id,true);$('items').appendChild(b)}}}    
+function select(id,move=false){let o=bodies.find(o=>o.d.id===id);if(!o)return;selected=o;document.querySelectorAll('.obj').forEach(b=>b.classList.toggle('active',b.dataset.id===id));let d=o.d;$('kind').textContent=d.kind||'Solar System object';$('name').textContent=d.name;$('desc').textContent=d.description||'Solar System object';$('stats').innerHTML=(d.stats||[['Diameter',d.diam||'—'],['Year',d.year||'—'],['Rotation',d.day||'—'],['Temperature',d.temp||'—']]).map(s=>`<div class="stat"><span>${s[0]}</span><b>${s[1]}</b></div>`).join('');$('note').textContent=d.note||'Illustrative visualization; values may be approximate and hypotheses are identified as such.';if(move){let p=o.mesh.position;target.set(p.x,0,p.z);camera.position.set(p.x,p.y+Math.max(8,d.r*5),p.z+Math.max(18,d.r*7));camera.lookAt(target)}}    
+catalog();select('sun');    
+function view(which){if(which==='home'){camera.position.set(0,80,150);target.set(0,0,0);select('sun')}if(which==='outer'){camera.position.set(0,130,250);target.set(0,0,110);select('pluto')}if(which==='oort'){camera.position.set(0,250,590);target.set(0,0,280);select('oort-cloud')}camera.lookAt(target)}    
+$('home').onclick=()=>view('home');$('outer').onclick=()=>view('outer');$('oort').onclick=()=>view('oort');$('zin').onclick=()=>camera.position.sub(target).multiplyScalar(.82).add(target);$('zout').onclick=()=>camera.position.sub(target).multiplyScalar(1.22).add(target);$('reset').onclick=()=>{camera.position.set(0,100,230);target.set(0,0,0);camera.lookAt(target)};$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Resume':'Pause'};$('labels').onclick=()=>{labelsOn=!labelsOn;labels.forEach(l=>l.visible=labelsOn);$('labels').textContent='Labels: '+(labelsOn?'ON':'OFF')};$('orbits').onclick=()=>{orbitsOn=!orbitsOn;orbitMeshes.forEach(l=>l.visible=orbitsOn);$('orbits').textContent='Orbits: '+(orbitsOn?'ON':'OFF')};    
+renderer.domElement.addEventListener('pointerdown',e=>{drag=true;lx=dx0=e.clientX;ly=dy0=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)});renderer.domElement.addEventListener('pointermove',e=>{    
+if(!drag)return;    
+let dx=e.clientX-lx,dy=e.clientY-ly;    
+lx=e.clientX;ly=e.clientY;    
+if(Math.hypot(e.clientX-dx0,e.clientY-dy0)>5){    
+let off=camera.position.clone().sub(target);    
+let s=new THREE.Spherical().setFromVector3(off);    
+s.theta-=dx*.006;    
+s.phi=Math.max(.12,Math.min(Math.PI-.12,s.phi+dy*.006));    
+off.setFromSpherical(s);    
+camera.position.copy(target).add(off);    
+camera.lookAt(target);    
+}    
+});  renderer.domElement.addEventListener('pointerup',e=>{  
+drag=false;  
+if(Math.hypot(e.clientX-dx0,e.clientY-dy0)<7){  
+pointer.x=e.clientX/innerWidth*2-1;  
+pointer.y=-(e.clientY/innerHeight)*2+1;  
+ray.setFromCamera(pointer,camera);  
+let hits=ray.intersectObjects(clickables);  
+if(hits.length)select(hits[0].object.userData.id,false);  
+}  
+});  renderer.domElement.addEventListener('wheel',e=>{
 e.preventDefault();
 camera.position.sub(target).multiplyScalar(e.deltaY>0?1.08:.92).add(target);
 camera.lookAt(target);
@@ -122,25 +118,24 @@ if(!paused){
 for(let o of bodies){
 let orb=o.mesh.userData.orbit;
 
-  if(orb){
-    let speed=.022/Math.sqrt(Math.max(1,orb.a));
-    let a=o.phase+t*speed;
+if(orb){
+let speed=.022/Math.sqrt(Math.max(1,orb.a));
+let a=o.phase+t*speed;
 
-    o.mesh.position.x=Math.cos(a)*orb.a;
-    o.mesh.position.z=Math.sin(a)*orb.a;
+o.mesh.position.x=Math.cos(a)*orb.a;
+o.mesh.position.z=Math.sin(a)*orb.a;
 
-    o.lab.position.set(
-      o.mesh.position.x,
-      o.mesh.position.y+(o.d.r||1)+2,
-      o.mesh.position.z
-    );
+o.lab.position.set(
+o.mesh.position.x,
+o.mesh.position.y+(o.d.r||1)+2,
+o.mesh.position.z
+);
 
-    o.mesh.rotation.y+=.0015;
-  }else if(o.d.id==='oort-cloud'){
-    o.mesh.rotation.y+=.0002;
-  }
+o.mesh.rotation.y+=.0015;
+}else if(o.d.id==='oort-cloud'){
+o.mesh.rotation.y+=.0002;
 }
-
+}
 }
 
 camera.lookAt(target);
@@ -156,5 +151,5 @@ $('loading').style.display='none';
 })();
 </script>
 
-</body>
+</body>    
 </html>
